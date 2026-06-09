@@ -8,7 +8,7 @@ from app.model import predict, predict_batch
 from app.preprocessing import preprocess_batch, preprocess_image
 from app.schemas import BatchPredictResponse, PredictionResult, SinglePredictResponse
 from app.settings import settings
-from app.telemetry import PREDICTION_COUNTER, PREDICTION_LATENCY, get_tracer
+from app.telemetry import PREDICTION_COUNTER, get_tracer
 
 router = APIRouter(tags=["predict"])
 
@@ -78,21 +78,20 @@ async def predict_single(image: UploadFile = File(...)) -> SinglePredictResponse
     with get_tracer().start_as_current_span("predict_single") as span:
         _validate_image_file(image)
 
-        with PREDICTION_LATENCY.labels(endpoint="/predict").time():
-            image_bytes = await asyncio.get_event_loop().run_in_executor(
-                _executor, _read_file_chunks, image
-            )
+        image_bytes = await asyncio.get_event_loop().run_in_executor(
+            _executor, _read_file_chunks, image
+        )
 
-            try:
-                result = await asyncio.get_event_loop().run_in_executor(
-                    _executor, _classify_single_sync, image_bytes
-                )
-            except ValueError as exc:
-                logger.warning(f"Failed to process image: {exc}")
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Corrupt or unreadable image: {exc}",
-                ) from exc
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                _executor, _classify_single_sync, image_bytes
+            )
+        except ValueError as exc:
+            logger.warning(f"Failed to process image: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Corrupt or unreadable image: {exc}",
+            ) from exc
 
         span.set_attribute("room_type", result.room_type)
         span.set_attribute("confidence", result.confidence)
@@ -115,29 +114,28 @@ async def predict_batch_endpoint(
                 detail=f"Batch size exceeds maximum of {settings.max_batch_size} images",
             )
 
-        with PREDICTION_LATENCY.labels(endpoint="/predict/batch").time():
-            # Validate all files first
-            for img in images:
-                _validate_image_file(img)
+        # Validate all files first
+        for img in images:
+            _validate_image_file(img)
 
-            # Read all file contents off the event loop
-            image_bytes_list = []
-            for img in images:
-                data = await asyncio.get_event_loop().run_in_executor(
-                    _executor, _read_file_chunks, img
-                )
-                image_bytes_list.append(data)
+        # Read all file contents off the event loop
+        image_bytes_list = []
+        for img in images:
+            data = await asyncio.get_event_loop().run_in_executor(
+                _executor, _read_file_chunks, img
+            )
+            image_bytes_list.append(data)
 
-            try:
-                result = await asyncio.get_event_loop().run_in_executor(
-                    _executor, _classify_batch_sync, image_bytes_list
-                )
-            except ValueError as exc:
-                logger.warning(f"Failed to process batch: {exc}")
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Corrupt or unreadable image in batch: {exc}",
-                ) from exc
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                _executor, _classify_batch_sync, image_bytes_list
+            )
+        except ValueError as exc:
+            logger.warning(f"Failed to process batch: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Corrupt or unreadable image in batch: {exc}",
+            ) from exc
 
         span.set_attribute("batch_size", len(result.predictions))
         logger.info(f"Batch predict: {len(result.predictions)} images processed")

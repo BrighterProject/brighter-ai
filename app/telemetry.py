@@ -7,7 +7,7 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
 
 from app.settings import settings
 
@@ -16,12 +16,6 @@ PREDICTION_COUNTER = Counter(
     "room_classifier_predictions_total",
     "Total number of predictions by room type",
     ["room_type"],
-)
-
-PREDICTION_LATENCY = Histogram(
-    "room_classifier_prediction_duration_seconds",
-    "Time spent processing prediction requests",
-    ["endpoint"],
 )
 
 # Module-level tracer — populated at startup
