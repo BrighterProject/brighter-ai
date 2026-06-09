@@ -28,7 +28,7 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.28.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
