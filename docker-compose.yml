@@ -1,0 +1,17 @@
+services:
+  ai-ms:
+    build: .
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./models:/models
+    environment:
+      MODEL_PATH: /models/room_classifier.pt
+      OTEL_SDK_DISABLED: "true"
+      LOG_LEVEL: INFO
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8005/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
