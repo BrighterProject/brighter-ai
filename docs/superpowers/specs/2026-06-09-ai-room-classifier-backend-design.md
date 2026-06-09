@@ -95,7 +95,7 @@ brighter-ai-blehhing/
 |---|---|
 | `routers/predict.py` | HTTP concerns: parse multipart, validate, return response |
 | `preprocessing.py` | Image transforms: decode bytes → tensor (resize, normalize) |
-| `model.py` | Model lifecycle: load at startup, `predict(tensor) → (class, confidence)` |
+| `model.py` | Model lifecycle: load at startup (crash on failure), `predict(tensor) → (class, confidence)` |
 | `schemas.py` | Pydantic models for request/response shapes |
 | `telemetry.py` | OTEL + Prometheus wiring, `/metrics` endpoint |
 
@@ -105,11 +105,15 @@ brighter-ai-blehhing/
 
 Preprocessing runs on the backend — the client sends raw JPEG/PNG. This keeps ML-specific constants (ImageNet mean/std, input size) server-side and avoids coupling every client to the preprocessing contract.
 
-Pipeline:
-1. Decode bytes → PIL Image
-2. Resize to 224×224
-3. Convert to tensor
-4. Normalize with ImageNet mean `[0.485, 0.456, 0.406]` and std `[0.229, 0.224, 0.225]`
+**Single image pipeline:**
+1. Read file in chunks (max 10 MB enforced during read — do not trust `Content-Length`)
+2. Decode bytes → PIL Image; raise 422 if corrupt
+3. Resize to 224×224
+4. Convert to tensor
+5. Normalize with ImageNet mean `[0.485, 0.456, 0.406]` and std `[0.229, 0.224, 0.225]`
+
+**Batch pipeline:**
+Same per-image steps 1–5, then `torch.stack()` all tensors into a single `[N, 3, 224, 224]` tensor and run one forward pass through the model. Do not loop `predict()` N times — that forgoes the entire benefit of batching.
 
 ---
 
@@ -123,13 +127,13 @@ All error responses use the `{"detail": "..."}` envelope consistent with other B
 | Image > 10 MB | 422 |
 | Corrupt/unreadable image | 422 |
 | Batch size > 20 | 422 |
-| Model file not found at startup | Service logs error, returns 503 on predict calls |
+| Model file not found at startup | Service raises at startup and crashes (fail-fast) — let the container orchestrator restart it |
 
 ---
 
 ## Docker & Infrastructure
 
-Base image: `pytorch/pytorch:2.x-cuda12.x-cudnn8-runtime`
+Base image: `pytorch/pytorch:2.x-cpu` (CPU-only). EfficientNet-B0 is lightweight enough that CPU inference is fast enough for production — using a CUDA base image would add gigabytes of unnecessary NVIDIA drivers.
 
 The `.pt` model file is **not** baked into the image — it is mounted as a volume. This allows teammates to swap the model file without rebuilding the container.
 
@@ -175,7 +179,7 @@ Coverage target: 80%+, matching the rest of BrighterProject.
 | EfficientNet-B0 | Strong accuracy/compute trade-off for image classification at 224×224 |
 | loguru | Same logging setup as other services |
 | OTEL + Prometheus | Same observability setup as other services |
-| Docker + CUDA base image | GPU training support; model file mounted via volume |
+| Docker + CPU PyTorch base image | Slim image (no NVIDIA drivers); EfficientNet-B0 is fast enough on CPU for production inference |
 
 ---
 
