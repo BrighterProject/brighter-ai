@@ -90,8 +90,8 @@ def predict(input_tensor: torch.Tensor) -> tuple[str, float]:
 
         # For single-image requests, return the top prediction
         top_prob, top_idx = probs.max(dim=1)
-        idx = top_idx.item()
-        confidence = top_prob.item()
+        idx = int(top_idx.item())
+        confidence = float(top_prob.item())
 
     return ROOM_CLASSES[idx], confidence
 
@@ -119,7 +119,7 @@ def predict_batch(input_tensor: torch.Tensor) -> list[tuple[str, float]]:
         top_probs, top_indices = probs.max(dim=1)
 
     return [
-        (ROOM_CLASSES[idx.item()], conf.item())
+        (ROOM_CLASSES[int(idx.item())], float(conf.item()))
         for idx, conf in zip(top_indices, top_probs)
     ]
 
