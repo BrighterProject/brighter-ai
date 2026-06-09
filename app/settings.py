@@ -1,5 +1,4 @@
-from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -20,7 +19,7 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
-    model_config = ConfigDict(env_prefix="", case_sensitive=False)
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
 
 settings = Settings()
