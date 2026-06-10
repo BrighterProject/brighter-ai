@@ -1,7 +1,7 @@
 """Shared test fixtures — mocks the model layer so no real .pt file is needed."""
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import torch
@@ -48,9 +48,9 @@ def client(mock_model):
         mock_predict_batch.return_value = [mock_model, ("kitchen", 0.91)]
 
         # Import main AFTER patches are in place so lifespan uses mocked config
-        from main import app
-
         from fastapi.testclient import TestClient
+
+        from main import app
 
         with TestClient(app) as test_client:
             yield test_client
