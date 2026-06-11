@@ -1,25 +1,10 @@
-"""Shared test fixtures — mocks the model layer so no real .pt file is needed."""
+"""Shared test fixtures — mocks the model layer so no real .keras file is needed."""
 
-import os
+import io
 from unittest.mock import patch
 
 import pytest
-import torch
-
-
-# Create a minimal fake checkpoint so init_model() can load successfully.
-# The fake model is an EfficientNet-B0 with 6 output classes whose weights
-# are randomly initialized — we never run real inference on it because
-# predict() and predict_batch() are also patched below.
-def _create_fake_checkpoint(path: str) -> None:
-    """Write a tiny valid .pt checkpoint to *path*."""
-    from torchvision.models import efficientnet_b0
-
-    model = efficientnet_b0(weights=None)
-    num_features = model.classifier[1].in_features
-    model.classifier[1] = torch.nn.Linear(num_features, 6)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    torch.save(model.state_dict(), path)
+from PIL import Image
 
 
 @pytest.fixture
@@ -30,17 +15,13 @@ def mock_model():
 
 @pytest.fixture
 def client(mock_model):
-    """Provide a TestClient with model.predict and model.predict_batch patched out.
+    """Provide a TestClient with model.init_model, predict, and predict_batch patched out.
 
-    No real .pt file is required — we mock the model layer entirely by:
-    1. Writing a fake (randomly-initialized) checkpoint that init_model() can load.
-    2. Patching predict() and predict_batch() so no actual forward pass runs.
+    No real .keras file is required — we mock the model layer entirely by
+    patching init_model() (no-op), predict(), and predict_batch().
     """
-    fake_path = "model/test_room_classifier.pt"
-    _create_fake_checkpoint(fake_path)
-
     with (
-        patch("app.settings.settings.model_path", fake_path),
+        patch("app.model.init_model"),
         patch("app.model.predict") as mock_predict,
         patch("app.model.predict_batch") as mock_predict_batch,
     ):
@@ -59,10 +40,6 @@ def client(mock_model):
 @pytest.fixture
 def sample_image_bytes():
     """Return a minimal valid JPEG image as bytes (100x100 gray)."""
-    import io
-
-    from PIL import Image
-
     img = Image.new("RGB", (100, 100), color=(128, 128, 128))
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
@@ -72,10 +49,6 @@ def sample_image_bytes():
 @pytest.fixture
 def sample_png_bytes():
     """Return a minimal valid PNG image as bytes (100x100 colored)."""
-    import io
-
-    from PIL import Image
-
     img = Image.new("RGB", (100, 100), color=(64, 128, 192))
     buf = io.BytesIO()
     img.save(buf, format="PNG")

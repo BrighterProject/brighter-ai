@@ -11,8 +11,18 @@ _model: tf.keras.Model | None = None
 
 
 def load_model(model_path: str | None = None) -> tf.keras.Model:
-    model_path_str = model_path or settings.model_path
-    model_path_obj = Path(model_path_str)
+    """Load a compiled Keras model from a .keras file.
+
+    Args:
+        model_path: Path to the .keras file. Falls back to ``settings.model_path``.
+
+    Returns:
+        The loaded Keras model.
+
+    Raises:
+        FileNotFoundError: If the model file does not exist.
+    """
+    model_path_obj = Path(model_path or settings.model_path)
 
     if not model_path_obj.is_absolute():
         project_root = Path(__file__).resolve().parents[1]
@@ -29,6 +39,11 @@ def load_model(model_path: str | None = None) -> tf.keras.Model:
 
 
 def init_model() -> None:
+    """Initialize the global model instance at application startup.
+
+    Follows a fail-fast strategy: if the model cannot be loaded the service
+    crashes immediately and lets the container orchestrator restart it.
+    """
     global _model
     _model = load_model()
 
@@ -40,8 +55,7 @@ def predict(input_array: np.ndarray) -> tuple[str, float]:
     if input_array.ndim == 3:
         input_array = np.expand_dims(input_array, axis=0)
 
-    logits = _model(input_array, training=False)
-    probs = tf.nn.softmax(logits).numpy()
+    probs = _model(input_array, training=False).numpy()
 
     top_idx = int(probs.argmax(axis=1)[0])
     confidence = float(probs.max(axis=1)[0])
@@ -53,8 +67,7 @@ def predict_batch(input_array: np.ndarray) -> list[tuple[str, float]]:
     if _model is None:
         raise RuntimeError("Model has not been loaded. Call init_model() at startup.")
 
-    logits = _model(input_array, training=False)
-    probs = tf.nn.softmax(logits).numpy()
+    probs = _model(input_array, training=False).numpy()
 
     top_indices = probs.argmax(axis=1)
     top_probs = probs.max(axis=1)

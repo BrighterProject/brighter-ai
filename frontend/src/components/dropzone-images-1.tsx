@@ -1,23 +1,25 @@
 "use client";
 
-import { useState } from "react";
 import {
   Dropzone,
   DropzoneContent,
   DropzoneEmptyState,
 } from "../components/kibo-ui/dropzone";
 
-export const title = "Images only";
+interface DropImageProps {
+  onFile: (file: File) => void
+}
 
-export const DropImage = () => {
-  const [files, setFiles] = useState<File[]>([]);
-
+export const DropImage = ({ onFile }: DropImageProps) => {
   return (
     <Dropzone
-      accept={{ "image/*": [] }}
+      accept={{ "image/jpeg": [], "image/png": [] }}
       className="w-full max-w-md"
-      onDrop={(acceptedFiles) => setFiles(acceptedFiles)}
-      src={files}
+      maxFiles={1}
+      onDrop={(acceptedFiles) => {
+        if (acceptedFiles[0]) onFile(acceptedFiles[0])
+      }}
+      src={[]}
     >
       <DropzoneEmptyState />
       <DropzoneContent />

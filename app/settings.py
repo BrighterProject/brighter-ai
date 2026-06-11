@@ -28,7 +28,7 @@ settings = Settings()
 ROOM_CLASSES = [
     "bathroom",
     "bedroom",
-    "dinning",
+    "dining",
     "kitchen",
     "livingroom",
 ]

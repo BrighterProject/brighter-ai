@@ -16,8 +16,6 @@ dependencies = [
     "python-multipart>=0.0.17",
     "pydantic>=2.9.0",
     "pydantic-settings>=2.6.0",
-    "torch>=2.5.0",
-    "torchvision>=0.20.0",
     "Pillow>=11.0.0",
     "loguru>=0.7.2",
     "prometheus-client>=0.21.0",
@@ -26,6 +24,8 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.49b0",
     "opentelemetry-exporter-prometheus>=0.49b0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.28.0",
+    "tensorflow>=2.18.0",
+    "numpy>=1.26.0",
 ]
 
 [dependency-groups]
