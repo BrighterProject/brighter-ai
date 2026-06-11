@@ -36,7 +36,7 @@ def client(mock_model):
     1. Writing a fake (randomly-initialized) checkpoint that init_model() can load.
     2. Patching predict() and predict_batch() so no actual forward pass runs.
     """
-    fake_path = "models/test_room_classifier.pt"
+    fake_path = "model/test_room_classifier.pt"
     _create_fake_checkpoint(fake_path)
 
     with (

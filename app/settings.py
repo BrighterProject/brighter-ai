@@ -4,11 +4,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Application configuration loaded from environment variables."""
 
-    model_path: str = "models/room_classifier.pt"
+    model_path: str = "model/room_classifier.keras"
     max_image_size_mb: int = 10
     max_batch_size: int = 20
     input_size: int = 224
-    num_classes: int = 6
+    num_classes: int = 5
 
     # OTEL / Telemetry
     otel_sdk_disabled: bool = False
@@ -26,10 +26,9 @@ settings = Settings()
 
 
 ROOM_CLASSES = [
-    "bedroom",
-    "living_room",
-    "kitchen",
     "bathroom",
-    "balcony",
-    "hallway",
+    "bedroom",
+    "dinning",
+    "kitchen",
+    "livingroom",
 ]

@@ -1,125 +1,66 @@
-import os
+from pathlib import Path
 
-import torch
-import torch.nn.functional as F
+import numpy as np
+import tensorflow as tf
 from loguru import logger
-from torchvision.models import efficientnet_b0
 
 from app.settings import ROOM_CLASSES, settings
 
 # Module-level state — populated at startup
-_model: torch.nn.Module | None = None
-_device: torch.device = torch.device("cpu")
+_model: tf.keras.Model | None = None
 
 
-def load_model(model_path: str | None = None) -> torch.nn.Module:
-    """Load the EfficientNet-B0 checkpoint with a custom classification head.
+def load_model(model_path: str | None = None) -> tf.keras.Model:
+    model_path_str = model_path or settings.model_path
+    model_path_obj = Path(model_path_str)
 
-    The model file is expected to contain state_dict keys for a 6-class
-    classifier built on top of EfficientNet-B0 features.
+    if not model_path_obj.is_absolute():
+        project_root = Path(__file__).resolve().parents[1]
+        model_path_obj = project_root / model_path_obj
 
-    Args:
-        model_path: Path to the .pt checkpoint. Falls back to ``settings.model_path``.
+    if not model_path_obj.is_file():
+        logger.error(f"Model file not found: {model_path_obj}")
+        raise FileNotFoundError(f"Model file not found: {model_path_obj}")
 
-    Returns:
-        The loaded model in eval mode on CPU.
-
-    Raises:
-        FileNotFoundError: If the checkpoint does not exist.
-        RuntimeError: If the state_dict cannot be loaded.
-    """
-    path = model_path or settings.model_path
-
-    if not os.path.isfile(path):
-        logger.error(f"Model file not found: {path}")
-        raise FileNotFoundError(f"Model file not found: {path}")
-
-    logger.info(f"Loading model from {path} ...")
-
-    model = efficientnet_b0(weights=None)
-    # Replace classifier head for 6 room classes
-    num_features = model.classifier[1].in_features
-    model.classifier[1] = torch.nn.Linear(num_features, settings.num_classes)
-
-    state_dict = torch.load(path, map_location=_device, weights_only=True)
-    model.load_state_dict(state_dict)
-    model.to(_device)
-    model.eval()
-
+    logger.info(f"Loading model from {model_path_obj} ...")
+    model = tf.keras.models.load_model(str(model_path_obj))
     logger.info("Model loaded successfully")
     return model
 
 
 def init_model() -> None:
-    """Initialize the global model instance at application startup.
-
-    Follows a fail-fast strategy: if the model cannot be loaded the service
-    crashes immediately and lets the container orchestrator restart it.
-    """
     global _model
     _model = load_model()
 
 
-def predict(input_tensor: torch.Tensor) -> tuple[str, float]:
-    """Run inference on a single preprocessed image or a batch.
-
-    For a batch tensor of shape [N, 3, 224, 224], returns the *highest-confidence*
-    prediction across the batch (used by the single-predict endpoint).
-    For a single image tensor of shape [3, 224, 224], returns that image's prediction.
-
-    Args:
-        input_tensor: Either [3, 224, 224] or [N, 3, 224, 224] FloatTensor.
-
-    Returns:
-        Tuple of (predicted_room_class, confidence_score).
-
-    Raises:
-        RuntimeError: If the model has not been loaded.
-    """
+def predict(input_array: np.ndarray) -> tuple[str, float]:
     if _model is None:
         raise RuntimeError("Model has not been loaded. Call init_model() at startup.")
 
-    with torch.no_grad():
-        # Ensure batched input: [1, 3, 224, 224] for single image
-        if input_tensor.dim() == 3:
-            input_tensor = input_tensor.unsqueeze(0)
+    if input_array.ndim == 3:
+        input_array = np.expand_dims(input_array, axis=0)
 
-        input_tensor = input_tensor.to(_device)
-        logits = _model(input_tensor)
-        probs = F.softmax(logits, dim=1)
+    logits = _model(input_array, training=False)
+    probs = tf.nn.softmax(logits).numpy()
 
-        # For single-image requests, return the top prediction
-        top_prob, top_idx = probs.max(dim=1)
-        idx = int(top_idx.item())
-        confidence = float(top_prob.item())
+    top_idx = int(probs.argmax(axis=1)[0])
+    confidence = float(probs.max(axis=1)[0])
 
-    return ROOM_CLASSES[idx], confidence
+    return ROOM_CLASSES[top_idx], confidence
 
 
-def predict_batch(input_tensor: torch.Tensor) -> list[tuple[str, float]]:
-    """Run inference on a batch of preprocessed images.
-
-    Args:
-        input_tensor: [N, 3, 224, 224] FloatTensor.
-
-    Returns:
-        List of (predicted_room_class, confidence_score) for each image.
-
-    Raises:
-        RuntimeError: If the model has not been loaded.
-    """
+def predict_batch(input_array: np.ndarray) -> list[tuple[str, float]]:
     if _model is None:
         raise RuntimeError("Model has not been loaded. Call init_model() at startup.")
 
-    with torch.no_grad():
-        input_tensor = input_tensor.to(_device)
-        logits = _model(input_tensor)
-        probs = F.softmax(logits, dim=1)
+    logits = _model(input_array, training=False)
+    probs = tf.nn.softmax(logits).numpy()
 
-        top_probs, top_indices = probs.max(dim=1)
+    top_indices = probs.argmax(axis=1)
+    top_probs = probs.max(axis=1)
 
     return [
-        (ROOM_CLASSES[int(idx.item())], float(conf.item()))
+        (ROOM_CLASSES[int(idx)], float(conf))
         for idx, conf in zip(top_indices, top_probs)
     ]
 
